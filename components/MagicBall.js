@@ -55,15 +55,27 @@ export default function MagicBall({
     const translateY = useSharedValue(0);
     const dragState = useSharedValue(false);
 
-    // Listener for changes to coords object so that we can adjust the balls position
-    useEffect(() => {
-        // dont update anything from the passed coords because
-        // user is manually dragging ball around
-        if (dragState.value == true) return;
+    /**
+     * TODO, identify why this method doesnt working inside AnimationGesture
+     * Get the new x & y position by passing in the increments of x & y, This method will guard against out of bounds
+     * @param number newX : the increment for x
+     * @param number newY : the increment for y
+     * @param number currentX : optional value to define current x
+     * @param number currentY : optional value to define current y
+     * @returns 
+     */
+    const getUpdatedCoords = (
+        newX = 0,
+        newY = 0,
+        currentX = null,
+        currentY = null
+    ) => {
+        // Get the current position of the object, we do this in case the position needs to be passed
+        currentX = currentX ?? translateX.value;
+        currentY = currentY ?? translateY.value;
 
-        // hold new position in memory so we can manage the limits
-        let updatedY = translateY.value + parseInt(coords.y);
-        let updatedX = translateX.value + parseInt(coords.x);
+        let updatedY = currentY + newY,
+            updatedX = currentX + newX;
 
         // Ensure that ball does not go out of bounds
         if (updatedY >= maxCords.bottom) {
@@ -78,9 +90,26 @@ export default function MagicBall({
             updatedX = maxCords.left;
         }
 
+        return {
+            x: updatedX,
+            y: updatedY
+        }
+    }
+
+    // Listener for changes to coords object so that we can adjust the balls position
+    useEffect(() => {
+        // dont update anything from the passed coords because
+        // user is manually dragging ball around
+        if (dragState.value == true) return;
+
+        const { x, y } = getUpdatedCoords(
+            parseInt(coords.x),
+            parseInt(coords.y)
+        );
+
         // Update shared values to move ball around
-        translateY.value = updatedY;
-        translateX.value = updatedX;
+        translateY.value = y;
+        translateX.value = x;
     }, [coords]);
 
     /**
@@ -90,35 +119,33 @@ export default function MagicBall({
         onStart: (event, context) => {
             context.translateX = translateX.value;
             context.translateY = translateY.value;
+            context.getUpdatedCoords = getUpdatedCoords;
 
             // lock drag state so that the passed coords dont effect the position while dragging
             dragState.value = true;
         },
         onActive: (event, context) => {
+            // TODO : this should use the method getUpdatedCoords() - but for some reason crashes.
             // hold new position in memory so we can manage the limits
             let updatedX = event.translationX + context.translateX;
             let updatedY = event.translationY + context.translateY;
 
             // Ensure that ball does not go out of bounds
-            if (updatedY < maxCords.bottom || updatedY < maxCords.top) {
-                if (updatedY >= maxCords.bottom) {
-                    updatedY = maxCords.bottom;
-                } else if (updatedY <= maxCords.top) {
-                    updatedY = maxCords.top;
-                }
-
-                translateY.value = updatedY;
+            if (updatedY >= maxCords.bottom) {
+                updatedY = maxCords.bottom;
+            } else if (updatedY <= maxCords.top) {
+                updatedY = maxCords.top;
             }
 
-            if (updatedX < maxCords.right || updatedX < maxCords.left) {
-                if (updatedX >= maxCords.right) {
-                    updatedX = maxCords.right;
-                } else if (updatedX <= maxCords.left) {
-                    updatedX = maxCords.left;
-                }
-
-                translateX.value = updatedX;
+            if (updatedX >= maxCords.right) {
+                updatedX = maxCords.right;
+            } else if (updatedX <= maxCords.left) {
+                updatedX = maxCords.left;
             }
+
+            // Update shared values to move ball around
+            translateY.value = updatedY;
+            translateX.value = updatedX;
         }, onEnd: () => {
             // release drag state so that component can accept coords again
             dragState.value = false;
